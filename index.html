@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>VESC Dash</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#000000">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;800&display=swap" rel="stylesheet">
+<style>
+:root{--fg:#fff;--hl:#ffd400;--acc:#4af}
+#boot{position:fixed;inset:0;background:#000;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .6s}
+#boot svg{width:78vw;max-height:62vh}
+#boot path{fill-rule:evenodd;stroke-dasharray:1;stroke-dashoffset:1;stroke-width:2.2;fill-opacity:0;stroke-linejoin:round}
+.ba{stroke:var(--acc);fill:var(--acc);animation:dr 2.2s ease-in-out forwards,fa .9s 2.1s ease forwards}
+.bb{stroke:var(--fg);fill:var(--fg);animation:dr 2.4s .4s ease-in-out forwards,fl .9s 2.6s ease forwards}
+#bt2{margin-top:18px;font-size:20px;letter-spacing:.3em;color:var(--hl);opacity:0;animation:fo 1s 3.1s forwards}
+@keyframes dr{to{stroke-dashoffset:0}}@keyframes fl{to{fill-opacity:1}}@keyframes fa{to{fill-opacity:.4}}@keyframes fo{to{opacity:1}}
+#dash{display:grid;gap:6px;align-content:start}
+#a_st{grid-area:st;text-align:center}#a_menu{grid-area:menu;writing-mode:vertical-rl;align-self:center}#a_ctr{grid-area:ctr;text-align:center;min-width:0}#a_ctl{grid-area:ctl}#a_bat{grid-area:bat}#a_info{grid-area:info}
+[data-layout=classic],[data-layout=mirror]{grid-template-columns:auto 1fr auto;grid-template-areas:"st st st" "menu ctr ctl" "bat bat bat" "info info info"}
+[data-layout=mirror]{grid-template-areas:"st st st" "ctl ctr menu" "bat bat bat" "info info info"}
+[data-layout=stack],[data-layout=minimal]{grid-template-columns:1fr;grid-template-areas:"st" "ctr" "ctl" "bat" "info" "menu"}
+[data-layout=minimal]{grid-template-areas:"st" "ctr" "ctl" "bat" "menu"}
+[data-layout=minimal] #a_info{display:none}
+[data-layout=stack] #a_menu,[data-layout=minimal] #a_menu{writing-mode:horizontal-tb}
+[data-layout=stack] #a_ctl,[data-layout=minimal] #a_ctl{display:flex;flex-direction:row-reverse;align-items:center;justify-content:center;gap:12px}
+[data-layout=stack] #a_ctl .btn,[data-layout=minimal] #a_ctl .btn{width:76px}
+[data-layout=minimal] .big{font-size:min(46vh,48vw)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{margin:0;height:100%;background:#000;color:var(--fg);font-family:Orbitron,Arial,sans-serif;overflow:hidden}
+#top{height:34px;display:flex;justify-content:space-between;align-items:center;padding:0 10px;font-size:13px}
+#pg{display:flex;height:calc(100% - 52px);overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
+#pg::-webkit-scrollbar{display:none}
+.p{flex:0 0 100%;scroll-snap-align:start;padding:8px 12px;position:relative}
+#dots{height:18px;text-align:center;font-size:10px;color:#555}
+#dots b{color:#fff}
+.yl{color:var(--hl);border:2px solid #fff;border-radius:10px;padding:4px 12px;display:inline-block;font-size:15px}
+.big{font-size:min(38vh,34vw);font-weight:800;line-height:1}
+.row{display:flex;justify-content:space-between;align-items:center}
+.btn{border:2px solid #fff;border-radius:12px;padding:14px 10px;font-size:22px;text-align:center;background:#111}
+.btn:active{background:#333}
+.bar{height:3px;background:#fff;margin:8px 0}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+.grid div{text-align:center;font-size:18px}.grid small{display:block;font-size:10px;color:var(--acc)}
+.lim{color:#0f8}.unl{color:#f55}
+canvas{width:100%;height:78%;display:block}
+.pad{position:fixed;inset:0;background:#000d;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9}
+.pad .k{display:grid;grid-template-columns:repeat(3,70px);gap:10px;margin-top:14px}
+.set label{display:block;font-size:11px;color:var(--acc);margin-top:6px}
+.set select,.set input{width:100%;background:#111;color:#fff;border:1px solid #666;border-radius:8px;padding:6px;font-family:inherit}
+.set{overflow-y:auto}
+</style></head><body>
+<div id="top"><span id="bt" onclick="conn()" class="yl" style="padding:2px 8px;font-size:12px">CONNECT</span><span id="fs" onclick="toggleFS()" style="font-size:20px;opacity:.7">⛶</span><span id="mode" style="width:14px;height:14px;border-radius:50%;background:#f33;box-shadow:0 0 8px #f33"></span></div>
+<div id="pg">
+ <!-- DASH -->
+ <div class="p" id="dash" data-layout="classic">
+  <div id="a_st"><span class="yl" id="st">ESC COMMUNICATION</span></div>
+  <div class="btn" id="a_menu" onclick="pg.scrollTo({left:pg.clientWidth*4,behavior:'smooth'})">MENU</div>
+  <div id="a_ctr"><div id="digi"><span class="big" id="spd">0</span><span style="font-size:20px"> KMH</span></div><canvas id="nd" style="display:none;width:100%;height:30vh"></canvas></div>
+  <div id="a_ctl">
+   <div class="btn" id="plus">+</div>
+   <div><div id="mtxt" style="text-align:center;margin:2px 0;font-size:14px;padding:14px 6px;border:1px dashed #444;border-radius:10px">MODE</div><div style="text-align:center;font-size:8px;color:#666">2x TAP / HOLD</div></div>
+   <div class="btn" id="minus">&minus;</div>
+  </div>
+  <div id="a_bat"><div class="bar"></div><div class="row" style="font-size:24px"><span id="pct">0%</span><span id="volt">0.0V</span></div><div class="bar"></div></div>
+  <div class="grid" id="a_info">
+   <div><span id="tm">0°C</span><small>MOS</small></div><div><span id="pwm">0W</span><small>POWER</small></div>
+   <div><span id="ab">0A</span><small>BATT</small></div><div><span id="am">0A</span><small>MOTOR A</small></div>
+   <div><span id="trip">0.0</span><small>TRIP KM</small></div><div><span id="odo">0.0</span><small>ODO KM</small></div>
+   <div onclick="resetMax()" style="grid-column:1/-1;display:flex;justify-content:space-around;border-top:1px solid #333;padding-top:6px"><div><span id="mxs">0</span><small>MAX KMH</small></div><div><span id="mxw">0</span><small>MAX WATTS</small></div></div>
+  </div>
+ </div>
+ <!-- GAUGE -->
+ <div class="p" onclick="dgReset()"><div class="yl">DRAG TEST <span id="dst"></span></div><div style="text-align:center"><span class="big" style="font-size:22vh" id="ds">0</span><span style="font-size:16px"> KMH</span><div id="dt" style="font-size:32px;color:var(--hl)">0.00s</div></div><div class="grid" id="dgrid"></div><div style="text-align:center;font-size:10px;color:#666;margin-top:8px">tap to reset</div></div>
+ <!-- TRAIL -->
+ <div class="p"><div class="yl">G-FORCE</div>
+  <canvas id="gc" style="height:46%"></canvas>
+  <div class="grid" style="margin-top:2px"><div><span id="gn">0.00</span><small>G NOW</small></div><div><span id="gpa">0.00</span><small>PEAK ACCEL</small></div><div><span id="gpb">0.00</span><small>PEAK BRAKE</small></div></div>
+  <div class="row" style="margin-top:8px;gap:6px"><div class="btn" style="font-size:14px;flex:1" onclick="gZero()">ZERO</div><div class="btn" style="font-size:14px;flex:1" onclick="gFlip()">FLIP</div><div class="btn" style="font-size:14px;flex:1" onclick="gPk=[0,0,0]">RESET</div></div></div>
+ <!-- TEMPS -->
+ 
+ <!-- POWER / RPM -->
+ <div class="p"><div class="yl">POWER / RPM</div>
+  <div class="grid" style="grid-template-columns:1fr 1fr;font-size:22px;margin-top:14px">
+   <div><span id="rpm">0</span><small>ERPM</small></div><div><span id="pw">0</span><small>WATTS</small></div>
+   <div><span id="duty">0</span><small>DUTY %</small></div><div><span id="wh">0.0</span><small>Wh USED</small></div>
+   <div><span id="fault">OK</span><small>FAULT</small></div><div><span id="lerpm">-</span><small>ERPM LIMIT</small></div>
+  </div><canvas id="pc" style="height:35%"></canvas></div>
+ <!-- SETTINGS -->
+ <div class="p set"><div class="yl">SETTINGS</div>
+  <label>Wheel diameter (mm)</label><input id="s_wd" type="number">
+  <label>Motor pole pairs</label><input id="s_pp" type="number">
+  <label>Battery cells in series</label><input id="s_cells" type="number">
+  <label>Limit speed (km/h)</label><input id="s_lim" type="number">
+  <label>Unlimited ERPM</label><input id="s_max" type="number">
+  <label>Limit mode power cap (watts, 0 = none)</label><input id="s_lw" type="number">
+  <label>ECO / SPORT / RACE current %</label><div style="display:flex;gap:6px"><input id="s_m0" type="number"><input id="s_m1" type="number"><input id="s_m2" type="number"></div>
+  <label>ECO / SPORT / RACE top speed km/h (0 = none)</label><div style="display:flex;gap:6px"><input id="s_v0" type="number"><input id="s_v1" type="number"><input id="s_v2" type="number"></div>
+  <label>Theme (layout)</label><select id="s_layout"><option value="classic">Classic</option><option value="mirror">Mirrored</option><option value="stack">Stacked</option><option value="minimal">Minimal</option></select>
+  <label>Colors</label><select id="s_theme"><option value="classic">Classic</option><option value="neon">Neon</option><option value="race">Race red</option><option value="matrix">Matrix green</option><option value="ice">Ice</option><option value="custom">Custom (pick below)</option></select>
+  <label>Custom colors: text / highlight / accent</label><div style="display:flex;gap:6px"><input id="s_cfg" type="color" style="height:34px;padding:2px" oninput="$('s_theme').value='custom'"><input id="s_chl" type="color" style="height:34px;padding:2px" oninput="$('s_theme').value='custom'"><input id="s_cacc" type="color" style="height:34px;padding:2px" oninput="$('s_theme').value='custom'"></div>
+  <label>Speedometer</label><select id="s_style"><option value="digital">Digital</option><option value="needle">Needle (car)</option></select>
+  <label>Start in fullscreen (on first tap)</label><select id="s_fsa"><option value="off">Off</option><option value="on">On</option></select>
+  <label>Boot animation</label><select id="s_boot"><option value="on">On</option><option value="off">Off</option></select>
+  <label>Needle max speed (km/h)</label><input id="s_smax" type="number">
+  <label>Set odometer km (blank = keep)</label><input id="s_odo" type="number" step="0.1">
+  <label>New limit PIN (blank = keep)</label><input id="s_pin" type="password" inputmode="numeric">
+  <label>New unlimit password (blank = keep)</label><input id="s_pw" type="password" inputmode="numeric">
+  <div class="btn" style="margin-top:10px" onclick="saveS()">SAVE</div>
+  <div class="btn" style="margin-top:8px" onclick="trip=0;localStorage.trip=0">RESET TRIP</div>
+ </div>
+</div>
+<div id="dots"></div>
+<div class="pad" id="pad"><div id="ptitle" class="yl"></div><div id="pdots" style="font-size:34px;margin-top:10px;height:44px"></div><div class="k" id="keys"></div></div>
+
+<div id="boot" onclick="bootEnd()"><svg viewBox="0 0 457 520"><path class="ba" pathLength="1" d="M313 500 311 496 309 494 307 494 304 496 299 497 297 501 294 499 286 502 283 502 274 505 270 505 269 506 265 506 264 507 259 507 258 508 237 509 236 510 206 509 197 512 179 512 176 511 174 512 174 513 177 513 182 515 187 515 188 516 193 516 194 517 200 517 206 519 249 519 255 517 273 515 274 514 293 510 310 504 313 502ZM291 492 287 484 286 484 277 490 275 493 272 493 262 498 259 498 258 499 239 498 227 503 246 503 247 502 255 502 256 501 267 500 268 499 272 499 273 498 284 496 290 494ZM347 475 344 475 335 481 335 484 338 490 345 487 350 483 350 481ZM300 474 298 474 290 481 290 484 294 492 297 492 306 488 306 486ZM361 464 349 472 349 474 353 481 356 480 365 473ZM333 448 323 457 323 460 331 475 333 475 343 469 343 467ZM346 434 336 444 336 448 345 466 348 466 358 458ZM406 416 392 434 396 443 398 443 411 427 411 425ZM380 365 370 371 370 375 371 376 372 385 373 386 372 395 388 427 390 427 401 413 403 409 382 366ZM403 338 400 340 398 340 396 342 394 350 388 359 384 362 384 366 403 404 405 406 416 388 423 371 406 338ZM435 329 432 329 419 335 409 336 409 338 424 367 425 367 425 365 427 362 428 356 431 349ZM453 317 442 324 440 337 438 342 438 346 431 368 428 374 428 378 426 379 416 400 408 412 408 414 413 423 416 420 426 404 441 372 450 342 452 327 453 326 453 319 454 318ZM269 296 264 298 261 301 259 305 259 312 264 319 269 321 274 321 278 319 282 315 284 310 284 307 282 302 278 298 274 296ZM273 301 274 302 274 308 279 311 277 313 273 312 272 314 269 316 268 315 269 310 264 306 266 304 269 305ZM87 284 85 285 82 299 81 300 81 305 82 306 88 304ZM288 262 282 266 285 270 287 269ZM234 225 228 227 210 237 194 249 187 256 186 255 186 239 185 238 184 239 180 253 179 267 178 268 178 281 186 291 188 292 190 289 193 280 194 273 198 270 205 268 218 259 228 238 235 228ZM283 206 281 208 281 213 283 215 288 215 290 213 289 207ZM244 200 241 199 234 205 234 208 236 209 244 202ZM40 195 30 217 24 235 24 238 21 247 21 251 20 252 20 256 19 257 18 271 17 272 17 287 16 288 18 322 19 323 19 328 20 329 20 334 21 335 23 347 33 376 44 398 55 415 72 436 75 438 80 428 98 411 103 404 105 399 97 399 87 395 47 366 37 356 31 343 28 326 26 321 26 317 24 312 24 308 22 303 22 299 20 294 20 289 19 288 20 278 24 268 32 259 62 237 42 196ZM237 193 236 192 233 192 226 200 227 201 230 201ZM429 186 429 195 428 198 430 202 441 214 438 204ZM340 185 335 189 337 193 343 198 345 194 345 189 342 185ZM44 157 34 171 20 197 20 199 13 214 10 223 10 226 8 230 8 233 6 237 6 241 5 242 4 251 2 257 2 264 0 269 0 314 1 315 3 332 4 333 4 337 5 338 5 342 6 343 8 354 14 372 22 389 22 391 26 397 30 406 41 423 50 435 64 450 71 445 71 443 56 426 42 406 27 377 24 367 22 364 14 335 14 330 12 323 12 316 11 315 11 302 10 301 10 284 11 283 12 262 13 261 14 250 15 249 19 230 27 208 36 190 36 188 39 185 50 167 45 157ZM84 138 78 144 78 148 64 190 63 191 61 190 53 174 45 186 44 194 65 235 78 226 78 223 69 206 69 202 84 159 86 161 102 193 102 196 97 209 97 212 109 204 112 198 112 193ZM93 130 87 135 87 138 115 193 115 199 124 193 125 191 95 131ZM76 122 70 127 71 132 75 138 81 132ZM86 114 79 119 79 121 83 129 85 129 91 124ZM127 107 121 110 119 112 119 114 149 174 151 174 158 169 158 165 130 109ZM153 95 147 98 145 98 131 105 161 166 162 166 174 157 174 155 167 142 167 138 171 126 156 96ZM120 91 111 96 111 98 116 106 125 101ZM171 89 167 91 161 92 158 94 174 125 174 129 172 132 170 141 176 153 179 154 200 139 191 121 192 118 206 122 211 131 214 130 216 128 216 126 211 117 186 109 184 107 175 89ZM265 86 266 87 266 90 265 91 266 97 274 97 280 99 283 99 286 93 286 90 272 87 271 86ZM259 86 258 87 258 90 259 91 262 91 263 88 261 86ZM178 88 187 106 212 114 214 116 218 125 221 125 236 114 230 101 228 99 196 89 192 85 183 86ZM196 84 196 85 199 87 230 97 239 112 253 102 263 98 263 96 261 94 258 94 255 91 254 88 256 84 253 83 222 82 223 85 222 87 210 83ZM147 79 143 80 124 89 124 92 127 98 130 99 141 93 152 89ZM167 73 163 73 151 77 151 80 155 87 159 87 166 84 169 84 172 82ZM170 72 176 82 177 81 189 79 189 77 184 69 174 70ZM188 68 188 70 192 78 201 77 197 68 195 66ZM213 65 217 74 219 76 247 76 248 77 256 77 257 78 263 78 264 79 273 80 286 84 289 84 290 83 292 76 291 73 285 71 277 70 272 68 261 67 260 66 241 65 240 64 216 64ZM341 0 340 0 340 4 339 5 339 13 338 14 338 21 337 22 335 40 334 41 332 54 331 55 329 66 327 70 327 73 325 77 325 80 319 98 317 101 311 118 307 125 307 127 297 147 295 149 290 159 287 162 279 162 278 161 275 162 264 162 263 163 261 162 261 159 271 132 271 130 269 130 224 162 225 164 224 165 220 165 210 171 207 174 197 180 194 183 143 218 125 232 52 284 52 290 54 295 54 299 56 304 56 308 58 313 58 317 59 318 63 337 67 341 103 367 109 367 121 363 124 363 137 359 141 359 145 357 153 356 154 355 160 355 161 354 163 355 165 354 167 356 166 362 160 374 158 376 154 385 152 387 137 414 126 431 113 445 122 442 126 438 129 438 130 441 128 445 118 457 109 465 101 469 101 470 110 470 113 473 117 473 131 477 136 476 138 478 141 478 142 479 159 480 172 473 174 473 195 459 210 443 212 445 210 454 202 468 195 475 195 476 229 465 243 458 265 442 266 443 265 446 252 464 252 466 257 465 273 454 287 440 298 423 299 426 296 432 295 437 297 437 312 424 321 414 321 413 318 413 317 412 330 402 340 389 340 387 337 387 330 391 321 394 309 396 308 397 303 397 302 396 318 386 328 376 342 354 353 343 363 338 364 336 363 335 350 336 340 341 339 339 352 327 363 320 371 316 388 310 388 309 373 308 372 307 375 305 381 305 382 304 389 303 412 291 418 289 421 290 410 303 416 302 429 295 437 289 446 280 456 266 456 263 454 263 436 272 434 272 416 280 411 281 409 277 409 273 405 261 402 260 398 256 397 249 395 246 396 245 399 247 400 255 403 257 403 253 399 246 399 243 398 242 399 239 415 244 423 244 424 243 405 222 395 208 395 205 396 204 396 170 395 168 392 170 384 183 381 186 380 185 380 178 381 177 381 134 380 133 380 123 379 122 379 116 378 115 378 109 377 108 376 98 374 93 374 89 373 88 370 73 367 66 367 63 362 48 360 45 359 40 352 25 352 23 349 18 349 16ZM330 313 331 314 331 318 329 319 328 318 329 317 328 315ZM347 310 348 309 351 309 352 311 351 312ZM336 308 340 306 344 306 345 307 340 309 337 309ZM261 275 264 275 270 278 278 284 286 293 291 302 293 308 293 312 294 313 294 330 293 331 293 335 291 338 285 337 277 333 250 324 244 320 252 297 254 294 255 289 257 286 259 278ZM309 260 311 257 314 257 316 259 316 262 314 264 312 264ZM325 250 326 251 326 254 325 255 324 254 324 251ZM326 245 327 246 327 249 326 250 325 249 325 246ZM288 243 289 242 292 242 293 244 290 245ZM389 242 391 241 396 245 394 246ZM386 240 388 239 390 241 388 242ZM375 236 377 235 379 237 377 238ZM376 233 378 232 387 239 385 240ZM334 231 335 232 333 243 330 245 329 242 330 241 331 234 332 232ZM340 227 341 228 339 239 336 241 335 239 336 238 337 230ZM272 227 273 226 285 227 294 237 295 240 294 241 285 240ZM350 225 351 228 349 229 348 228ZM346 223 347 224 347 228 349 229 346 231 345 235 342 237 341 234 342 233 343 226ZM351 221 352 222 352 225 351 226 350 225 350 222ZM360 213 362 211 364 211 366 214 365 215 363 213 362 214ZM264 219 273 211 276 212 277 216 280 219 285 221 291 219 296 213 299 213 313 230 314 233 312 235 301 240 287 224 268 223ZM284 202 289 203 294 209 294 212 292 216 288 219 283 219 281 218 277 213 277 209 279 205ZM347 91 352 112 353 113 354 122 355 123 355 128 357 135 357 142 358 143 358 152 359 153 359 171 360 172 359 200 358 201 358 210 354 214 354 215 357 214 359 215 353 219 352 222 351 221 351 217 352 216 351 215 344 219 344 222 342 224 330 231 328 233 326 245 325 246 313 227 308 222 304 216 299 211 297 211 295 209 294 205 289 201 282 201 280 202 274 209 269 212 264 217 261 217 250 206 247 207 241 213 241 215 278 251 268 257 270 260 276 263 279 263 311 243 313 245 317 252 316 253 317 256 316 258 315 257 311 257 309 259 309 262 308 263 307 261 306 261 305 264 304 263 305 256 306 255 308 257 313 253 310 248 308 251 308 255 307 256 306 255 306 251 305 251 293 259 291 265 291 269 290 270 290 275 294 279 297 274 298 276 300 276 309 270 312 267 312 266 310 265 316 263 316 258 317 257 319 260 319 262 320 262 322 260 324 254 326 256 328 255 351 234 367 221 367 218 368 217 370 218 381 209 382 210 382 214 373 227 373 229 377 232 375 233 372 231 372 232 376 235 375 236 372 236 371 239 375 242 378 242 379 240 378 238 380 237 392 245 397 250 397 254 396 255 381 245 376 245 375 246 372 246 369 249 366 254 366 258 367 259 367 262 369 264 401 285 403 287 401 290 397 287 393 288 368 271 361 272 353 281 345 282 339 279 329 294 325 298 319 299 315 303 309 312 320 299 325 299 335 287 337 287 343 291 351 298 351 304 352 305 351 308 349 309 345 306 334 307 328 314 328 316 326 318 324 318 328 318 329 319 328 320 310 323 311 325 309 326 307 341 305 346 303 348 299 345 299 341 301 334 301 315 304 305 304 301 305 298 310 293 321 285 323 278 323 274 324 273 324 269 322 269 293 292 288 284 280 275 268 266 260 262 256 262 251 277 249 280 248 285 246 288 245 293 237 312 235 320 232 325 198 333 194 335 191 335 170 341 167 341 163 343 128 351 124 353 121 353 112 356 109 356 104 352 105 350 109 350 114 348 127 346 131 342 132 339 145 320 198 309 201 306 216 283 242 278 243 277 242 274 213 280 198 303 194 306 190 306 185 308 181 308 180 309 171 310 166 312 152 314 142 317 128 339 123 343 119 343 118 344 114 344 113 345 98 348 74 330 72 318 70 313 70 309 67 300 66 290 211 185 220 194 222 194 229 188 229 185 220 176 221 174 228 173 229 172 234 172 235 171 253 170 254 169 277 169 278 170 288 170 289 171 304 173 324 180 331 184 333 183 338 178 338 175 339 174 340 163 341 162 341 155 342 154 342 148 341 147 337 151 334 156 318 172 308 167 298 164 297 162 317 143 332 121 337 111 344 90 345 89Z"/><path class="bb" pathLength="1" d="M350 313 344 310 335 311 332 315 332 319 330 321 327 321 327 322 335 328 340 328 345 324 350 317ZM271 297 265 299 262 302 260 306 260 311 265 318 272 320 277 318 281 314 282 312 282 305 277 299ZM275 299 276 300 275 307 279 309 281 312 278 314 274 314 271 317 268 318 266 316 267 315 267 310 264 308 262 305 265 303 269 303 272 300ZM86 288 82 304 86 304ZM373 247 367 255 368 261 389 275 392 278 396 279 393 270 394 268 391 264 384 259 382 248 380 246 378 247ZM234 227 229 228 211 238 195 250 187 258 185 257 185 246 184 243 182 250 182 255 181 256 181 262 180 263 179 280 187 290 188 290 192 279 193 272 195 270 209 264 217 258 228 235ZM243 213 243 215 279 250 282 250 288 246 288 245 250 208 248 208ZM242 200 237 204 235 207 241 203ZM235 193 234 193 228 200 230 199ZM340 187 338 188 337 190 342 196 344 190ZM342 6 341 7 339 29 338 30 334 54 320 100 311 120 311 122 296 152 289 163 268 163 267 164 260 164 259 163 259 160 269 132 264 136 226 162 227 164 226 167 219 167 214 170 211 173 201 179 198 182 133 227 126 233 57 282 53 286 64 336 68 340 104 366 172 350 176 348 207 341 211 339 238 333 246 330 249 330 258 334 263 335 266 337 271 338 274 340 288 344 290 347 293 362 290 363 273 357 269 380 263 396 265 396 270 393 278 382 279 383 279 386 278 387 276 397 271 409 264 420 256 429 257 430 269 425 275 420 277 421 277 425 269 442 261 455 254 464 264 459 272 453 286 439 295 426 301 413 303 414 303 416 302 417 301 425 297 435 309 425 318 415 309 419 308 417 329 401 335 394 338 389 336 389 329 393 315 397 304 398 303 399 299 399 298 398 300 395 307 392 316 386 328 374 341 353 351 343 362 337 352 337 346 339 335 345 334 344 338 338 345 331 357 322 372 314 383 310 376 310 375 309 368 308 366 306 367 304 379 304 380 303 384 303 390 301 404 294 406 292 408 292 419 287 422 287 423 288 422 291 414 301 426 295 437 287 448 275 454 265 435 274 433 274 430 276 411 283 408 279 408 275 404 262 398 261 388 254 388 256 398 264 400 270 400 274 401 275 400 277 401 278 401 284 404 286 404 289 399 293 396 292 393 289 369 273 362 273 354 282 351 283 341 282 344 286 343 287 344 286 346 288 347 293 352 297 355 317 347 328 342 332 337 332 335 333 324 325 310 327 309 338 308 339 307 346 305 349 299 348 297 346 298 339 299 338 299 333 300 332 300 313 302 308 303 299 309 292 320 284 320 281 322 276 322 271 296 292 292 293 287 285 278 275 267 267 259 263 257 263 251 281 247 289 245 297 243 300 242 305 238 313 236 321 233 326 212 331 211 332 208 332 207 333 204 333 203 334 200 334 199 335 196 335 195 336 192 336 191 337 188 337 184 339 180 339 176 341 145 348 141 350 122 354 114 357 108 357 101 351 103 349 126 345 130 341 131 338 144 319 150 317 164 315 169 313 183 311 188 309 197 308 200 305 215 282 232 279 242 276 237 276 227 279 214 281 199 304 196 307 192 307 182 310 178 310 177 311 168 312 163 314 154 315 149 317 145 317 142 319 129 340 125 344 116 345 115 346 102 348 101 349 97 349 73 331 64 290 75 281 86 274 93 268 97 266 104 260 115 253 122 247 133 240 208 185 212 184 220 192 222 192 228 186 217 175 219 173 226 171 231 171 232 170 247 169 248 168 283 168 284 169 291 169 292 170 297 170 298 171 306 172 321 177 330 182 332 182 336 178 338 167 339 166 339 159 340 158 340 150 336 156 318 174 309 169 304 168 301 166 298 166 294 163 314 144 326 128 337 107 343 90 343 87 345 85 346 85 348 88 353 109 354 110 354 113 355 114 355 118 357 124 357 130 358 131 358 137 359 138 359 145 360 146 360 157 361 158 361 194 360 195 360 206 359 209 360 210 374 203 381 196 382 197 382 203 383 204 384 213 375 226 375 229 396 243 397 243 395 238 397 236 405 240 421 243 400 218 394 209 394 197 395 196 394 171 393 171 383 187 379 191 378 190 379 169 380 168 380 143 379 142 379 130 378 129 378 121 377 120 375 102 374 101 374 97 372 92 370 80 368 76 368 73 361 51ZM261 273 263 273 271 277 280 284 286 291 292 301 295 311 295 316 296 317 296 326 295 327 294 336 291 340 268 332 265 330 260 329 257 327 249 325 243 322 243 318 247 309 249 301 251 298 258 277Z"/></svg><div id="bt2">VESC DASH</div></div>
+<script>
+const $=id=>document.getElementById(id);
+const S=Object.assign({wd:254,pp:15,cells:20,lim:24,max:100000,m0:40,m1:70,m2:100,v0:20,v1:35,v2:0,lw:600,theme:'classic',layout:'classic',cfg:'#ffffff',chl:'#ffd400',cacc:'#44aaff',style:'digital',boot:'on',fsa:'off',smax:60,pin:null,pw:null},JSON.parse(localStorage.S||'{}'));
+let MX=JSON.parse(localStorage.mx||'[0,0]');function resetMax(){MX=[0,0];localStorage.mx='[0,0]';$('mxs').textContent=0;$('mxw').textContent=0}
+let mode=1,dg={s:'arm',r:[]};const MODES=['ECO','SPORT','RACE'],DT=[10,20,30,40,50];let B=JSON.parse(localStorage.best||'[]');let trip=+localStorage.trip||0,odo=localStorage.odo2!==undefined?+localStorage.odo2:732,limited=false,V={},hist=[],thist=[],phist=[],trail=[];let synced=odo;
+async function H(s){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('vd'+s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch(e){let h=0;for(const c of 'vd'+s)h=(h*31+c.charCodeAt(0))|0;return ''+h}}
+(async()=>{if(!S.pin)S.pin=await H('1234');if(!S.pw)S.pw=await H('4321');saveRaw();loadS()})();
+function saveRaw(){localStorage.S=JSON.stringify(S)}
+function loadS(){for(const k of['wd','pp','cells','lim','max','m0','m1','m2','v0','v1','v2','smax','lw','cfg','chl','cacc'])$('s_'+k).value=S[k];$('s_theme').value=S.theme;$('s_layout').value=S.layout;$('s_style').value=S.style;$('s_boot').value=S.boot;$('s_fsa').value=S.fsa;applyTheme()}
+async function saveS(){for(const k of['wd','pp','cells','lim','max','m0','m1','m2','v0','v1','v2','smax','lw'])S[k]=+$('s_'+k).value;
+ if($('s_pin').value)S.pin=await H($('s_pin').value);if($('s_pw').value)S.pw=await H($('s_pw').value);
+ S.theme=$('s_theme').value;S.layout=$('s_layout').value;S.cfg=$('s_cfg').value;S.chl=$('s_chl').value;S.cacc=$('s_cacc').value;S.style=$('s_style').value;S.boot=$('s_boot').value;S.fsa=$('s_fsa').value;applyTheme();if($('s_odo').value!==''){odo=+$('s_odo').value;synced=odo;localStorage.odo2=odo;sendOdo()}$('s_odo').value='';$('s_pin').value=$('s_pw').value='';saveRaw();pg.scrollTo({left:0,behavior:'smooth'})}
+// ---- PIN pad
+let buf='',padCb=null,padHash=null;
+const keys=$('keys');['1','2','3','4','5','6','7','8','9','X','0','OK'].forEach(k=>{const d=document.createElement('div');d.className='btn';d.textContent=k;d.onclick=()=>key(k);keys.appendChild(d)});
+function ask(title,hash,cb){buf='';$('ptitle').textContent=title;$('pdots').textContent='';padHash=hash;padCb=cb;$('pad').style.display='flex'}
+async function key(k){if(k==='X'){if(buf)buf=buf.slice(0,-1);else return close()}else if(k==='OK'){const ok=(await H(buf))===padHash;if(ok){close();padCb()}else{$('ptitle').textContent='WRONG';buf=''}}else if(buf.length<8)buf+=k;$('pdots').textContent='●'.repeat(buf.length)}
+function close(){$('pad').style.display='none'}
+// ---- hold buttons
+function hold(el,fn,tap){let t,f;const dn=()=>{f=false;t=setTimeout(()=>{f=true;fn()},800)},up=()=>{clearTimeout(t);if(t&&!f)tap();t=0};el.addEventListener('touchstart',e=>{e.preventDefault();dn()},{passive:false});el.addEventListener('touchend',up);el.addEventListener('mousedown',dn);el.addEventListener('mouseup',up)}
+$('minus').addEventListener('click',()=>setMode(-1));$('plus').addEventListener('click',()=>setMode(1));
+let lt=0,lp;const mt=$('mtxt'),limUI=()=>{if(limited)ask('PASSWORD: UNLIMIT',S.pw,()=>setLimit(false));else ask('ENTER PIN: LIMIT MODE',S.pin,()=>setLimit(true))};
+mt.addEventListener('click',()=>{const n=Date.now();if(n-lt<800){lt=0;limUI()}else lt=n});
+mt.addEventListener('touchstart',()=>{lp=setTimeout(()=>{lt=0;limUI()},700)},{passive:true});
+['touchend','touchmove','touchcancel'].forEach(e=>mt.addEventListener(e,()=>clearTimeout(lp)));
+function limErpm(){return Math.round(S.lim/60*1000/(Math.PI*S.wd/1000)/60*60*S.pp/1)}
+function limErpmCalc(k){const circ=Math.PI*S.wd/1000;return Math.round((k||S.lim)*1000/60/circ*S.pp)}
+async function push(){const cap=S['v'+mode];let kmh=limited?S.lim:0;if(cap>0)kmh=kmh?Math.min(kmh,cap):cap;const e=kmh?limErpmCalc(kmh):S.max;$('lerpm').textContent=e;
+ const p=new Uint8Array(8);p[0]=36;p[1]=limited?1:0;new DataView(p.buffer).setInt32(2,e);p[6]=S['m'+mode];p[7]=limited?Math.min(255,Math.round(S.lw/10)):0;await send(p)}
+async function setLimit(on){limited=on;ui();await push()}
+function setMode(d){mode=Math.max(0,Math.min(2,mode+d));ui();push()}
+function ui(){{const c=limited?'#0f8':'#f33',d=$('mode').style;d.background=c;d.boxShadow='0 0 8px '+c}$('mtxt').textContent=MODES[mode]}
+// ---- VESC BLE
+let rx,tx,dev,pbuf=[];const NUS='6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+function crc(d){let c=0;for(const b of d){c^=b<<8;for(let i=0;i<8;i++)c=c&0x8000?((c<<1)^0x1021):(c<<1);c&=0xffff}return c}
+async function send(p){if(!rx)return;const l=p.length,c=crc(p);let h=l<256?[2,l]:[3,l>>8,l&255];const a=new Uint8Array([...h,...p,c>>8,c&255,3]);
+ for(let i=0;i<a.length;i+=20)await(rx.properties.writeWithoutResponse?rx.writeValueWithoutResponse(a.slice(i,i+20)):rx.writeValue(a.slice(i,i+20)))}
+async function conn(){try{if(!navigator.bluetooth){$('st').textContent='NO WEB BLUETOOTH';return}$('st').textContent='SCANNING...';dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[NUS,'49535343-fe7d-4ae5-8fa9-9fafd205e455',0xffe0,0xfff0,0xffb0,0xffd0,0xffc0,0xffa0,0xff00,0xfe00,0xae00,0x18f0,0xffe5,0xffe9,0xfff6,0x00ff,0xff01]});$('st').textContent='CONNECTING...';
+ const gs=await dev.gatt.connect();$('st').textContent='SERVICES...';
+ let svs=[],er='';rx=tx=null;for(let k=0;k<4&&!svs.length;k++){try{svs=await gs.getPrimaryServices()}catch(e){er=e.name}
+ if(!svs.length){await new Promise(r=>setTimeout(r,800));if(!gs.connected)break}}
+ for(const sv of svs){const cs=await sv.getCharacteristics();
+  for(const c of cs){const p=c.properties;if(!tx&&(p.notify||p.indicate))tx=c;if(!rx&&(p.write||p.writeWithoutResponse))rx=c}
+  if(rx&&tx)break;rx=tx=null}
+ if(!rx||!tx){rx=null;$('st').textContent=((gs.connected?'':'DROPPED ')+er+' '+svs.length+' svc').slice(0,34);return}
+ await tx.startNotifications();tx.addEventListener('characteristicvaluechanged',e=>feed(new Uint8Array(e.target.value.buffer)));
+ $('bt').textContent=dev.name||'LINKED';$('st').textContent='ESC CONNECTED';dev.addEventListener('gattserverdisconnected',()=>{rx=null;$('bt').textContent='CONNECT';$('st').textContent='ESC COMMUNICATION'});
+ setInterval(()=>send(new Uint8Array([4])),100);push();send(new Uint8Array([36,3]))}catch(e){$('st').textContent=((e.name||'ERR')+': '+(e.message||'')).slice(0,34)}}
+function feed(a){pbuf.push(...a);while(pbuf.length){const s=pbuf[0];if(s!==2&&s!==3){pbuf.shift();continue}
+ const hl=s===2?2:3,len=s===2?pbuf[1]:(pbuf[1]<<8)|pbuf[2];if(pbuf.length<hl+len+3)return;
+ const pl=new Uint8Array(pbuf.slice(hl,hl+len));pbuf.splice(0,hl+len+3);if(pl[0]===4)parse(pl);else if(pl[0]===36&&pl[1]===3){const c=new DataView(pl.buffer).getInt32(2)/1000;if(c>odo)odo=c;synced=odo;localStorage.odo2=odo;sendOdo()}}}
+function parse(p){const d=new DataView(p.buffer);V={tm:d.getInt16(1)/10,tmo:d.getInt16(3)/10,cm:d.getInt32(5)/100,cb:d.getInt32(9)/100,duty:d.getInt16(21)/10,rpm:d.getInt32(23),v:d.getInt16(27)/10,wh:d.getInt32(37)/1e4,fault:p[57]};
+ V.kmh=Math.abs(V.rpm/S.pp*Math.PI*S.wd/1000*60/1000);
+ const now=Date.now(),dt=(now-(V.t||now))/3.6e6;V.t=now;trip+=V.kmh*dt;odo+=V.kmh*dt;
+ if(Math.abs(odo-synced)>=0.1){synced=odo;sendOdo()}dragStep(now);hist.push(V.kmh);thist.push([V.tm,V.tmo]);phist.push(V.v*V.cb);[hist,thist,phist].forEach(h=>h.length>150&&h.shift());render()}
+function render(){const pct=Math.max(0,Math.min(100,(V.v/S.cells-3)/(4.2-3)*100));
+ $('spd').textContent=Math.round(V.kmh);$('pct').textContent=Math.round(pct)+'%';$('volt').textContent=V.v.toFixed(1)+'V';
+ $('tm').textContent=Math.round(V.tm)+'°C';$('pwm').textContent=Math.round(V.v*V.cb)+'W';$('ab').textContent=Math.round(V.cb)+'A';$('am').textContent=Math.round(V.cm)+'A';
+ $('trip').textContent=trip.toFixed(1);$('odo').textContent=odo.toFixed(1);$('rpm').textContent=V.rpm;$('pw').textContent=Math.round(V.v*V.cb);
+ $('duty').textContent=Math.round(V.duty);$('wh').textContent=V.wh.toFixed(1);$('fault').textContent=V.fault?'F'+V.fault:'OK';
+ localStorage.trip=trip;MX[0]=Math.max(MX[0],V.kmh);MX[1]=Math.max(MX[1],V.v*V.cb);$('mxs').textContent=Math.round(MX[0]);$('mxw').textContent=Math.round(MX[1]);localStorage.mx=JSON.stringify(MX);localStorage.odo2=odo;draw()}
+// ---- drag
+function dragStep(now){const k=V.kmh;
+ if(dg.s==='arm'&&k>1){dg.s='run';dg.t0=now;dg.r=[]}
+ if(dg.s==='run'){dg.el=(now-dg.t0)/1000;DT.forEach((d,i)=>{if(dg.r[i]==null&&k>=d){dg.r[i]=dg.el;if(!B[i]||dg.el<B[i]){B[i]=dg.el;localStorage.best=JSON.stringify(B)}}});
+  if(k>=DT[4])dg.s='done';else if(k<0.5&&dg.el>3){dg.s='arm'}}
+ $('ds').textContent=Math.round(k);$('dt').textContent=(dg.el||0).toFixed(2)+'s';$('dst').textContent=dg.s==='arm'?'· READY':dg.s==='run'?'· GO':'· DONE';
+ $('dgrid').innerHTML=DT.map((d,i)=>`<div>${dg.r[i]!=null?dg.r[i].toFixed(2)+'s':'--'}<small>0-${d}${B[i]?' · best '+B[i].toFixed(2):''}</small></div>`).join('')}
+function dgReset(){dg={s:'arm',r:[],el:0};dragStep(Date.now())}
+// ---- canvases
+function applyTheme(){let T={classic:['#fff','#ffd400','#4af'],neon:['#e8ffff','#ff2bd6','#00f0ff'],race:['#fff','#ff3b30','#ff9500'],matrix:['#d6ffd6','#39ff14','#00c853'],ice:['#fff','#7df9ff','#8ab4ff']}[S.theme]||['#fff','#ffd400','#4af'];if(S.theme==='custom')T=[S.cfg,S.chl,S.cacc];$('dash').dataset.layout=S.layout||'classic';const r=document.documentElement.style;
+ r.setProperty('--fg',T[0]);r.setProperty('--hl',T[1]);r.setProperty('--acc',T[2]);const n=S.style==='needle';$('digi').style.display=n?'none':'block';$('nd').style.display=n?'block':'none'}
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+function drawNeedle(){const[x,w,h]=cv('nd'),mx=S.smax||60,cx=w/2,cy=h*.56,r=Math.min(w/2-4,h*.52),a0=Math.PI*.75,sw=Math.PI*1.5,ang=v=>a0+Math.min(v,mx)/mx*sw,k=V.kmh||0;
+ x.lineCap='round';x.lineWidth=7;x.strokeStyle='#222';x.beginPath();x.arc(cx,cy,r,a0,a0+sw);x.stroke();
+ x.strokeStyle=css('--acc');x.beginPath();x.arc(cx,cy,r,a0,ang(k));x.stroke();
+ x.fillStyle=css('--fg');x.strokeStyle=css('--fg');x.textAlign='center';x.textBaseline='middle';x.font='10px Orbitron,Arial';
+ for(let v=0;v<=mx;v+=5){const a=ang(v),m=v%10===0,r1=r-(m?14:9),r2=r-3;x.lineWidth=m?2:1;x.beginPath();x.moveTo(cx+Math.cos(a)*r1,cy+Math.sin(a)*r1);x.lineTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2);x.stroke();if(m)x.fillText(v,cx+Math.cos(a)*(r-26),cy+Math.sin(a)*(r-26))}
+ const a=ang(k);x.strokeStyle=css('--hl');x.lineWidth=3;x.beginPath();x.moveTo(cx-Math.cos(a)*10,cy-Math.sin(a)*10);x.lineTo(cx+Math.cos(a)*(r-6),cy+Math.sin(a)*(r-6));x.stroke();
+ x.fillStyle=css('--hl');x.beginPath();x.arc(cx,cy,6,0,7);x.fill();x.fillStyle=css('--fg');x.font='800 '+r*.42+'px Orbitron,Arial';x.fillText(Math.round(k),cx,cy+r*.5);x.font='9px Orbitron,Arial';x.fillText('KMH',cx,cy+r*.5+r*.3)}
+// ---- sendOdo / g-force
+async function sendOdo(){const p=new Uint8Array(6);p[0]=36;p[1]=2;new DataView(p.buffer).setInt32(2,Math.round(odo*1000));await send(p)}
+let gA=[0,0,0],g0=[0,0,0],gF=1,gPk=[0,0,0],gOn=false;
+function gStart(){if(gOn)return;gOn=true;window.addEventListener('devicemotion',e=>{const a=e.accelerationIncludingGravity;if(!a)return;
+ const r=[a.x||0,a.y||0,a.z||0];gA=gA.map((v,i)=>v+(r[i]-v)*.25);const g=gG();gPk[0]=Math.max(gPk[0],g[1]);gPk[1]=Math.max(gPk[1],-g[1]);gPk[2]=Math.max(gPk[2],Math.abs(g[0]));
+ if(Math.round(pg.scrollLeft/pg.clientWidth)===2)drawG()})}
+function gG(){return[(gA[0]-g0[0])/9.81,gF*(gA[2]-g0[2])/9.81]}
+async function gZero(){try{if(window.DeviceMotionEvent&&DeviceMotionEvent.requestPermission)await DeviceMotionEvent.requestPermission()}catch(e){}gStart();setTimeout(()=>{g0=gA.slice();gPk=[0,0,0]},300)}
+function gFlip(){gF=-gF;gPk=[0,0,0]}
+function drawG(){gStart();const[x,w,h]=cv('gc'),cx=w/2,cy=h/2,R=Math.min(w,h)/2-6,g=gG(),sc=R/1;
+ x.strokeStyle='#333';x.lineWidth=1;for(const f of[.25,.5,.75,1]){x.beginPath();x.arc(cx,cy,R*f,0,7);x.stroke()}
+ x.beginPath();x.moveTo(cx-R,cy);x.lineTo(cx+R,cy);x.moveTo(cx,cy-R);x.lineTo(cx,cy+R);x.stroke();
+ const px=cx+Math.max(-1,Math.min(1,g[0]))*sc,py=cy-Math.max(-1,Math.min(1,g[1]))*sc;
+ x.fillStyle=css('--hl');x.beginPath();x.arc(px,py,9,0,7);x.fill();x.fillStyle=css('--acc');x.font='9px Orbitron,Arial';x.textAlign='center';x.fillText('1G',cx+R*.92,cy-4);
+ $('gn').textContent=Math.hypot(g[0],g[1]).toFixed(2);$('gpa').textContent=gPk[0].toFixed(2);$('gpb').textContent=gPk[1].toFixed(2)}
+function cv(id){const c=$(id),r=c.getBoundingClientRect();c.width=r.width*devicePixelRatio;c.height=r.height*devicePixelRatio;const x=c.getContext('2d');x.scale(devicePixelRatio,devicePixelRatio);return[x,r.width,r.height]}
+function line(id,arrs,cols,mx){const[x,w,h]=cv(id);arrs.forEach((a,k)=>{x.strokeStyle=cols[k];x.lineWidth=2;x.beginPath();a.forEach((v,i)=>{const X=i/150*w,Y=h-Math.max(0,v)/mx*h;i?x.lineTo(X,Y):x.moveTo(X,Y)});x.stroke()})}
+function draw(){const pi=Math.round(pg.scrollLeft/pg.clientWidth);
+  if(pi===2)drawG();
+  if(pi===0&&S.style==='needle')drawNeedle();
+  if(pi===3)line('pc',[phist],['#ff0'],3000);
+ dots(pi)}
+function dots(i){$('dots').innerHTML=[0,1,2,3,4].map(k=>k===i?'<b>●</b>':'●').join(' ')}
+pg.addEventListener('scroll',()=>{dots(Math.round(pg.scrollLeft/pg.clientWidth));draw()});let wl=null;
+async function keepAwake(){try{if('wakeLock'in navigator)wl=await navigator.wakeLock.request('screen')}catch(e){}}
+async function toggleFS(){try{if(document.fullscreenElement)await document.exitFullscreen();else{await document.documentElement.requestFullscreen({navigationUI:'hide'});keepAwake()}}catch(e){$('st').textContent='FULLSCREEN BLOCKED HERE'}}
+document.addEventListener('fullscreenchange',()=>{$('fs').style.opacity=document.fullscreenElement?1:.7;$('fs').style.color=document.fullscreenElement?css('--hl'):''});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&document.fullscreenElement)keepAwake()});
+if(S.fsa==='on')document.addEventListener('click',()=>{if(!document.fullscreenElement)toggleFS()},{once:true});
+function bootEnd(){const b=$('boot');if(!b)return;b.style.opacity=0;setTimeout(()=>b.remove(),650)}
+if(S.boot==='off')$('boot').remove();else setTimeout(bootEnd,4800);
+dots(0);ui();loadS();$('mxs').textContent=Math.round(MX[0]);$('mxw').textContent=Math.round(MX[1]);
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script></body></html>
